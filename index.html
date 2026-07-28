@@ -67,7 +67,8 @@
         const highlightColors = ['#E15F99', '#1CA71C', '#FB0D0D', '#DA16FF', '#222A2A', '#B68100', '#750D86', '#EB663B', '#511CFB', '#00A08B']; 
         const baseColors = ['#7F3C8D', '#11A579', '#3969AC', '#F2B701', '#E73F74', '#80BA5A', '#E68310', '#008695', '#CF1C90', '#f97b72', '#4b4b8f', '#A5AA99'];
 
-        const defaultFiles = ['ajeje+mori2026 antik.csv', 'mori2026 modern.csv', 'nostrat.csv'];
+        // Klasör yolları eklendi!
+        const defaultFiles = ['data/ajeje+mori2026 antik.csv', 'data/mori2026 modern.csv', 'data/nostrat.csv'];
         
         window.onload = function() {
             let loadedCount = 0;
@@ -79,7 +80,9 @@
                     skipEmptyLines: true,
                     complete: function(results) {
                         const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
-                        tempDatasets[index] = { group: fileUrl.replace('.csv', ''), data: data };
+                        // Klasör adını ve uzantıyı atarak temiz grup adı alıyoruz
+                        const cleanName = fileUrl.split('/').pop().replace('.csv', '');
+                        tempDatasets[index] = { group: cleanName, data: data };
                         loadedCount++;
                         if(loadedCount === defaultFiles.length) {
                             tempDatasets.forEach(ds => { if(ds) rawDatasets.push(ds); });
@@ -191,7 +194,7 @@
                 buildDropdowns(maxDims);
             }
 
-            // Kalıcı Ayna (Permanent Mirror) Logic: Her zaman PC1 ve PC3'ü -1 ile çarpar
+            // Kalıcı Ayna: Her zaman PC1 ve PC3'ü -1 ile çarpar
             if (fullData.length > 0) {
                 for (let i = 0; i < fullData[0].length; i++) {
                     if (fullData[0][i] !== null) {
@@ -251,7 +254,6 @@
             const dimY = parseInt(document.getElementById('sel-y').value);
             const dimZ = parseInt(document.getElementById('sel-z').value);
 
-            // B-baka! Everything is mathematically mirrored! Checkboxes are normal again!
             const rx = document.getElementById('rev-x').checked ? 'reversed' : true;
             const ry = document.getElementById('rev-y').checked ? 'reversed' : true;
             const rz = document.getElementById('rev-z').checked ? 'reversed' : true;
