@@ -13,6 +13,13 @@
         .divider { border-left:1px solid #ccc; height:24px; margin:0 5px; }
         .cb-label { font-weight:600; display:flex; align-items:center; gap:5px; cursor:pointer; color:#b71c1c; }
         .axis-group { display:flex; align-items:center; gap:3px; }
+        
+        #hl-container { padding: 8px 16px; background: #e9ecef; display: none; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #ced4da; }
+        .hl-chip { color: #fff; border-radius: 6px; padding: 4px 8px; display: flex; align-items: center; gap: 6px; font-size: 13px; border: 1px solid #111; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
+        .hl-btn { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 4px; cursor: pointer; padding: 2px 6px; font-size: 11px; display:flex; align-items:center; justify-content:center; transition: 0.1s;}
+        .hl-btn:hover { background: rgba(0,0,0,0.5); }
+        .hl-del { background: #d63031; border: 1px solid #2d3436; color: white; border-radius: 4px; cursor: pointer; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; margin-left: 4px; font-weight: bold; transition: 0.1s;}
+        .hl-del:hover { background: #ff7675; }
     </style>
 </head>
 <body>
@@ -57,6 +64,8 @@
         <label style="font-weight:600;">📁 Yükle:</label>
         <input type="file" id="file-input" multiple accept=".csv" />
     </div>
+    
+    <div id="hl-container"></div>
     <div id="g25plot"></div>
 
     <script>
@@ -230,12 +239,21 @@
         }
 
         function getAnnotations(hx, hy, hz) {
-            return highlights.map((h, i) => ({
-                x: hx[i], y: hy[i], z: hz[i],
-                text: shorten(h.name),
-                showarrow: false, xanchor: 'center', yanchor: 'bottom', yshift: 10,
-                font: { size: 11, color: "#111111", family: "Arial" }
-            }));
+            return highlights.map((h, i) => {
+                const color = highlightColors[i % highlightColors.length];
+                return {
+                    x: hx[i], y: hy[i], z: hz[i],
+                    text: "<b>" + shorten(h.name) + "</b>",
+                    showarrow: true,
+                    arrowhead: 0,
+                    ax: h.ax, ay: h.ay,
+                    font: { size: 12, color: "#ffffff", family: "system-ui, sans-serif" },
+                    bgcolor: color,
+                    bordercolor: "#111111",
+                    borderwidth: 1.5,
+                    borderpad: 4
+                };
+            });
         }
 
         function drawInitialPlot() {
@@ -243,8 +261,6 @@
             const dimY = parseInt(document.getElementById('sel-y').value);
             const dimZ = parseInt(document.getElementById('sel-z').value);
 
-            // X ve Z eksenleri varsayılan olarak (işaretsizken) ters çevrilir.
-            // Y ekseni varsayılan olarak (işaretsizken) normaldir.
             const signX = document.getElementById('rev-x').checked ? 1 : -1;
             const signY = document.getElementById('rev-y').checked ? -1 : 1;
             const signZ = document.getElementById('rev-z').checked ? 1 : -1;
@@ -253,8 +269,6 @@
 
             for(let i = 0; i < groupNames.length; i++) {
                 const indices = traceIndices[i];
-                
-                // Matematiksel çarpımı tam Plotly'ye gönderirken yapıyoruz, null'ları koruyarak!
                 const gx = indices.map(idx => fullData[dimX][idx] === null ? null : fullData[dimX][idx] * signX);
                 const gy = indices.map(idx => fullData[dimY][idx] === null ? null : fullData[dimY][idx] * signY);
                 const gz = indices.map(idx => fullData[dimZ][idx] === null ? null : fullData[dimZ][idx] * signZ);
@@ -277,7 +291,7 @@
                 type: 'scatter3d',
                 x: [], y: [], z: [],
                 mode: "markers",
-                marker: { size: 6, symbol: "circle", line: {width: 2, color: "#2c2c2c"} },
+                marker: { size: 8, symbol: "circle", opacity: 1, line: {width: 2, color: "#111111"} },
                 hoverinfo: "skip",
                 showlegend: false,
                 name: "vurgular"
@@ -424,23 +438,66 @@
             const name = sampleNames[idx];
             addHighlight(idx, name);
             
-            // Reset dropdown
             sel.selectedIndex = 0;
         }
 
         function addHighlight(idx, name) {
             if (!highlights.some(h => h.idx === idx)) {
-                highlights.push({idx: idx, name: name});
+                highlights.push({idx: idx, name: name, ax: 0, ay: -35});
                 updateHighlights();
+                renderHighlightChips();
             }
             const status = document.getElementById('status');
             status.textContent = "Eklendi → " + name;
             status.style.color = "#27ae60";
         }
 
+        function renderHighlightChips() {
+            const container = document.getElementById('hl-container');
+            if (highlights.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'flex';
+            container.innerHTML = '';
+            
+            highlights.forEach((h, i) => {
+                const color = highlightColors[i % highlightColors.length];
+                const chip = document.createElement('div');
+                chip.className = 'hl-chip';
+                chip.style.backgroundColor = color;
+                
+                chip.innerHTML = `
+                    <span><b>${shorten(h.name)}</b></span>
+                    <button class="hl-btn" onclick="nudge(${i}, 0, -15)" title="Yukarı taşı">▲</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 0, 15)" title="Aşağı taşı">▼</button>
+                    <button class="hl-btn" onclick="nudge(${i}, -15, 0)" title="Sola taşı">◄</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 15, 0)" title="Sağa taşı">►</button>
+                    <button class="hl-del" onclick="removeHighlight(${i})" title="Bu vurguyu kaldır">✖</button>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        function nudge(index, dx, dy) {
+            if (highlights[index]) {
+                highlights[index].ax += dx;
+                highlights[index].ay += dy;
+                updateHighlights();
+            }
+        }
+
+        function removeHighlight(index) {
+            highlights.splice(index, 1);
+            updateHighlights();
+            renderHighlightChips();
+        }
+
         function doClear() {
             highlights = [];
             updateHighlights();
+            renderHighlightChips();
             document.getElementById('status').textContent = "";
             document.getElementById('q').value = "";
             
