@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>G25 3D PCA Plotter</title>
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+    <style>
+        body, html { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-family: system-ui, sans-serif; }
+        #g25plot { flex-grow: 1; width: 100%; }
+        .control-panel { padding:10px 16px; background:#f1f3f5; border-bottom:1px solid #dee2e6; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+        .divider { border-left:1px solid #ccc; height:24px; margin:0 5px; }
+        .cb-label { font-weight:600; display:flex; align-items:center; gap:5px; cursor:pointer; color:#b71c1c; }
+        .axis-group { display:flex; align-items:center; gap:3px; }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <label class="cb-label" title="Tüm numuneler birleştirilerek tek bir PCA hesaplar">
+            <input type="checkbox" id="cb-custom-pca" onchange="rebuildData()" checked>
+            Özel PCA
+        </label>
+
+        <span class="divider"></span>
+
+        <label style="font-weight:600;white-space:nowrap;">Eksenler:</label>
+        
+        <span class="axis-group">
+            <select id="sel-x" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
+            <label style="font-size:12px;cursor:pointer;" title="Ekseni görsel olarak ters çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">Ters</label>
+        </span>
+        
+        <span class="axis-group">
+            <select id="sel-y" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
+            <label style="font-size:12px;cursor:pointer;" title="Ekseni görsel olarak ters çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">Ters</label>
+        </span>
+        
+        <span class="axis-group">
+            <select id="sel-z" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
+            <label style="font-size:12px;cursor:pointer;" title="Ekseni görsel olarak ters çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">Ters</label>
+        </span>
+
+        <span class="divider"></span>
+
+        <label style="font-weight:600;white-space:nowrap;">Ara:</label>
+        <input id="q" type="text" placeholder="Numune..." style="flex:1;max-width:200px;padding:7px;font-size:14px;border:1px solid #ced4da;border-radius:4px;">
+        <button onclick="doSearch()" style="padding:7px 18px;background:#2c7bb6;color:white;border:none;border-radius:4px;cursor:pointer;">Bul</button>
+        <button onclick="doClear()" style="padding:7px 14px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;">Temizle</button>
+        <span id="status" style="margin-left:12px;font-size:13px;color:#495057;"></span>
+        
+        <span class="divider"></span>
+
+        <label style="font-weight:600;">📁 Yükle:</label>
+        <input type="file" id="file-input" multiple accept=".csv" />
+    </div>
+    <div id="g25plot"></div>
+
+    <script>
+        let sampleNames = [];
+        let fullData = []; 
+        let traceIndices = []; 
+        let groupNames = [];
+        let highlights = [];
+        let rawDatasets = [];
+
+        const highlightColors = ['#E15F99', '#1CA71C', '#FB0D0D', '#DA16FF', '#222A2A', '#B68100', '#750D86', '#EB663B', '#511CFB', '#00A08B']; 
+        const baseColors = ['#7F3C8D', '#11A579', '#3969AC', '#F2B701', '#E73F74', '#80BA5A', '#E68310', '#008695', '#CF1C90', '#f97b72', '#4b4b8f', '#A5AA99'];
+
+        const defaultFiles = ['ajeje+mori2026 antik.csv', 'mori2026 modern.csv', 'nostrat.csv'];
+        
+        window.onload = function() {
+            let loadedCount = 0;
+            let tempDatasets = new Array(defaultFiles.length);
+            
+            defaultFiles.forEach((fileUrl, index) => {
+                Papa.parse(fileUrl, {
+                    download: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
+                        tempDatasets[index] = { group: fileUrl.replace('.csv', ''), data: data };
+                        loadedCount++;
+                        if(loadedCount === defaultFiles.length) {
+                            tempDatasets.forEach(ds => { if(ds) rawDatasets.push(ds); });
+                            rebuildData();
+                        }
+                    },
+                    error: function() {
+                        console.error("Dosya yüklenemedi: " + fileUrl);
+                        loadedCount++;
+                        if(loadedCount === defaultFiles.length) {
+                            tempDatasets.forEach(ds => { if(ds) rawDatasets.push(ds); });
+                            rebuildData();
+                        }
+                    }
+                });
+            });
+        };
+
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (files.length === 0) return;
+            let filesProcessed = 0;
+            Array.from(files).forEach((file) => {
+                Papa.parse(file, {
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
+                        rawDatasets.push({ group: file.name.replace('.csv', ''), data: data });
+                        filesProcessed++;
+                        if (filesProcessed === files.length) rebuildData();
+                    }
+                });
+            });
+        });
+
+        function rebuildData() {
+            sampleNames = [];
+            groupNames = [];
+            traceIndices = [];
+            let tempCoords = [];
+            let currentIndex = 0;
+            let maxDims = 0;
+
+            rawDatasets.forEach(ds => {
+                if(!ds || ds.data.length === 0) return;
+                groupNames.push(ds.group);
+                let indices = [];
+                ds.data.forEach(row => {
+                    sampleNames.push(row[0]);
+                    indices.push(currentIndex++);
+                    let coords = [];
+                    for(let i=1; i<row.length; i++) {
+                        let val = parseFloat(row[i]);
+                        coords.push(isNaN(val) ? null : val);
+                    }
+                    if(coords.length > maxDims) maxDims = coords.length;
+                    tempCoords.push(coords);
+                });
+                traceIndices.push(indices);
+            });
+
+            if(sampleNames.length === 0) return;
+            if(maxDims < 3) maxDims = 3;
+
+            const doCustomPCA = document.getElementById('cb-custom-pca').checked;
+
+            if (doCustomPCA && typeof numeric !== 'undefined') {
+                let X = tempCoords.map(row => {
+                    let newRow = [];
+                    for(let j=0; j<maxDims; j++) {
+                        let val = row[j];
+                        newRow.push((val === null || val === undefined) ? 0.0 : val);
+                    }
+                    return newRow;
+                });
+                
+                let n = X.length;
+                let m = maxDims;
+                
+                let means = new Array(m).fill(0);
+                for(let i=0; i<n; i++) for(let j=0; j<m; j++) means[j] += X[i][j];
+                for(let j=0; j<m; j++) means[j] /= n;
+                for(let i=0; i<n; i++) for(let j=0; j<m; j++) X[i][j] -= means[j];
+                
+                let XT = numeric.transpose(X);
+                let C = numeric.dot(XT, X);
+                let svd = numeric.svd(C);
+                
+                let transformed = numeric.dot(X, svd.U);
+                
+                let nComps = Math.min(n, m);
+                fullData = [];
+                for(let d=0; d<nComps; d++) {
+                    let dimData = [];
+                    for(let i=0; i<n; i++) dimData.push(transformed[i][d]);
+                    fullData.push(dimData);
+                }
+                buildDropdowns(nComps);
+            } else {
+                fullData = [];
+                for(let d=0; d<maxDims; d++) {
+                    let dimData = [];
+                    tempCoords.forEach(c => {
+                        if(d < c.length) dimData.push(c[d] !== null ? c[d] : null);
+                        else dimData.push(0.0);
+                    });
+                    fullData.push(dimData);
+                }
+                buildDropdowns(maxDims);
+            }
+
+            // Kalıcı Ayna (Permanent Mirror) Logic: Her zaman PC1 ve PC3'ü -1 ile çarpar
+            if (fullData.length > 0) {
+                for (let i = 0; i < fullData[0].length; i++) {
+                    if (fullData[0][i] !== null) {
+                        fullData[0][i] = -fullData[0][i];
+                    }
+                    if (fullData.length > 2 && fullData[2][i] !== null) {
+                        fullData[2][i] = -fullData[2][i];
+                    }
+                }
+            }
+
+            drawInitialPlot();
+        }
+
+        function buildDropdowns(dims) {
+            const selX = document.getElementById('sel-x');
+            const selY = document.getElementById('sel-y');
+            const selZ = document.getElementById('sel-z');
+            
+            let currX = selX.value ? parseInt(selX.value) : 0;
+            let currY = selY.value ? parseInt(selY.value) : 1;
+            let currZ = selZ.value ? parseInt(selZ.value) : 2;
+
+            selX.innerHTML = ''; selY.innerHTML = ''; selZ.innerHTML = '';
+
+            for(let i=0; i<dims; i++) {
+                let optX = document.createElement('option'); optX.value = i; optX.text = 'PC'+(i+1);
+                let optY = document.createElement('option'); optY.value = i; optY.text = 'PC'+(i+1);
+                let optZ = document.createElement('option'); optZ.value = i; optZ.text = 'PC'+(i+1);
+
+                if(i === currX) optX.selected = true;
+                if(i === currY) optY.selected = true;
+                if(i === currZ) optZ.selected = true;
+
+                selX.appendChild(optX);
+                selY.appendChild(optY);
+                selZ.appendChild(optZ);
+            }
+        }
+
+        function shorten(name) {
+            if (name.length > 30) return name.substring(0, 27) + "...";
+            return name;
+        }
+
+        function getAnnotations(hx, hy, hz) {
+            return highlights.map((h, i) => ({
+                x: hx[i], y: hy[i], z: hz[i],
+                text: shorten(h.name),
+                showarrow: false, xanchor: 'center', yanchor: 'bottom', yshift: 10,
+                font: { size: 11, color: "#111111", family: "Arial" }
+            }));
+        }
+
+        function drawInitialPlot() {
+            const dimX = parseInt(document.getElementById('sel-x').value);
+            const dimY = parseInt(document.getElementById('sel-y').value);
+            const dimZ = parseInt(document.getElementById('sel-z').value);
+
+            // B-baka! Everything is mathematically mirrored! Checkboxes are normal again!
+            const rx = document.getElementById('rev-x').checked ? 'reversed' : true;
+            const ry = document.getElementById('rev-y').checked ? 'reversed' : true;
+            const rz = document.getElementById('rev-z').checked ? 'reversed' : true;
+
+            const traces = [];
+
+            for(let i = 0; i < groupNames.length; i++) {
+                const indices = traceIndices[i];
+                const gx = indices.map(idx => fullData[dimX][idx]);
+                const gy = indices.map(idx => fullData[dimY][idx]);
+                const gz = indices.map(idx => fullData[dimZ][idx]);
+                const gnames = indices.map(idx => sampleNames[idx]);
+                const color = baseColors[i % baseColors.length];
+
+                traces.push({
+                    type: 'scatter3d',
+                    x: gx, y: gy, z: gz,
+                    mode: "markers",
+                    marker: {size: 3.5, opacity: 0.78, color: color},
+                    customdata: gnames,
+                    hovertemplate: "<b>%{customdata}</b><br>" + groupNames[i] + "<br>PC" + (dimX+1) + ": %{x:.5f}<br>PC" + (dimY+1) + ": %{y:.5f}<br>PC" + (dimZ+1) + ": %{z:.5f}<extra></extra>",
+                    name: groupNames[i]
+                });
+            }
+
+            traces.push({
+                type: 'scatter3d',
+                x: [], y: [], z: [],
+                mode: "markers",
+                marker: { size: 6, symbol: "circle", line: {width: 2, color: "#2c2c2c"} },
+                hoverinfo: "skip",
+                showlegend: false,
+                name: "vurgular"
+            });
+            
+            const doCustomPCA = document.getElementById('cb-custom-pca').checked;
+            let titleText = doCustomPCA ? "G25 3D PCA (Özel Birleştirilmiş PCA)" : "G25 3D PCA";
+
+            const layout = {
+                title: titleText,
+                scene: {
+                    xaxis: {title: 'PC' + (dimX+1), autorange: rx},
+                    yaxis: {title: 'PC' + (dimY+1), autorange: ry},
+                    zaxis: {title: 'PC' + (dimZ+1), autorange: rz},
+                    annotations: []
+                },
+                template: "plotly_white",
+                margin: {t: 70, b: 50, l: 60, r: 220},
+                legend: {font: {size: 11}}
+            };
+
+            Plotly.newPlot('g25plot', traces, layout);
+            if(highlights.length > 0) updateHighlights();
+        }
+
+        function updateAxes() {
+            const dimX = parseInt(document.getElementById('sel-x').value);
+            const dimY = parseInt(document.getElementById('sel-y').value);
+            const dimZ = parseInt(document.getElementById('sel-z').value);
+            const gd = document.getElementById('g25plot');
+            
+            const rx = document.getElementById('rev-x').checked ? 'reversed' : true;
+            const ry = document.getElementById('rev-y').checked ? 'reversed' : true;
+            const rz = document.getElementById('rev-z').checked ? 'reversed' : true;
+
+            const x_update = [];
+            const y_update = [];
+            const z_update = [];
+            const ht_update = [];
+
+            for(let i = 0; i < traceIndices.length; i++) {
+                const indices = traceIndices[i];
+                x_update.push(indices.map(idx => fullData[dimX][idx]));
+                y_update.push(indices.map(idx => fullData[dimY][idx]));
+                z_update.push(indices.map(idx => fullData[dimZ][idx]));
+                ht_update.push("<b>%{customdata}</b><br>" + groupNames[i] + "<br>PC" + (dimX+1) + ": %{x:.5f}<br>PC" + (dimY+1) + ": %{y:.5f}<br>PC" + (dimZ+1) + ": %{z:.5f}<extra></extra>");
+            }
+
+            const hx = highlights.map(h => fullData[dimX][h.idx]);
+            const hy = highlights.map(h => fullData[dimY][h.idx]);
+            const hz = highlights.map(h => fullData[dimZ][h.idx]);
+            
+            x_update.push(hx);
+            y_update.push(hy);
+            z_update.push(hz);
+            ht_update.push(undefined); 
+
+            Plotly.restyle(gd, {
+                x: x_update, y: y_update, z: z_update, hovertemplate: ht_update
+            });
+
+            Plotly.relayout(gd, {
+                'scene.xaxis.title.text': 'PC' + (dimX+1),
+                'scene.xaxis.autorange': rx,
+                'scene.yaxis.title.text': 'PC' + (dimY+1),
+                'scene.yaxis.autorange': ry,
+                'scene.zaxis.title.text': 'PC' + (dimZ+1),
+                'scene.zaxis.autorange': rz,
+                'scene.annotations': getAnnotations(hx, hy, hz)
+            });
+        }
+
+        function updateHighlights() {
+            const gd = document.getElementById('g25plot');
+            const dimX = parseInt(document.getElementById('sel-x').value);
+            const dimY = parseInt(document.getElementById('sel-y').value);
+            const dimZ = parseInt(document.getElementById('sel-z').value);
+
+            const hx = highlights.map(h => fullData[dimX][h.idx]);
+            const hy = highlights.map(h => fullData[dimY][h.idx]);
+            const hz = highlights.map(h => fullData[dimZ][h.idx]);
+            const hcolors = highlights.map((_, i) => highlightColors[i % highlightColors.length]);
+            
+            Plotly.restyle(gd, {
+                x: [hx], y: [hy], z: [hz], 'marker.color': [hcolors]
+            }, [traceIndices.length]);
+
+            Plotly.relayout(gd, {
+                'scene.annotations': getAnnotations(hx, hy, hz)
+            });
+        }
+
+        function doSearch() {
+            const q = document.getElementById('q').value.trim();
+            const status = document.getElementById('status');
+            if (!q) return;
+
+            const lower = q.toLowerCase();
+            let idx = -1;
+
+            for (let i = 0; i < sampleNames.length; i++) {
+                const n = sampleNames[i].toLowerCase();
+                if (n === lower || n.includes(lower)) {
+                    idx = i;
+                    break;
+                }
+            }
+
+            if (idx === -1) {
+                status.textContent = "Bulunamadı: " + q;
+                status.style.color = "#c0392b";
+                return;
+            }
+
+            const name = sampleNames[idx];
+            
+            if (!highlights.some(h => h.idx === idx)) {
+                highlights.push({idx: idx, name: name});
+                updateHighlights();
+            }
+
+            status.textContent = "Eklendi → " + name;
+            status.style.color = "#27ae60";
+        }
+
+        function doClear() {
+            highlights = [];
+            updateHighlights();
+            document.getElementById('status').textContent = "";
+            document.getElementById('q').value = "";
+        }
+    </script>
+</body>
+</html>
