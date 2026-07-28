@@ -44,8 +44,11 @@
         <span class="divider"></span>
 
         <label style="font-weight:600;white-space:nowrap;">Ara:</label>
-        <input id="q" type="text" placeholder="Numune..." style="flex:1;max-width:200px;padding:7px;font-size:14px;border:1px solid #ced4da;border-radius:4px;">
+        <input id="q" type="text" placeholder="Numune..." style="flex:1;max-width:200px;padding:7px;font-size:14px;border:1px solid #ced4da;border-radius:4px;" onkeydown="if(event.key === 'Enter') doSearch()">
         <button onclick="doSearch()" style="padding:7px 18px;background:#2c7bb6;color:white;border:none;border-radius:4px;cursor:pointer;">Bul</button>
+        
+        <select id="search-results" onchange="addSelectedHighlight()" style="display:none;padding:6px;border-radius:4px;border:1px solid #ced4da;max-width:200px;"></select>
+
         <button onclick="doClear()" style="padding:7px 14px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;">Temizle</button>
         <span id="status" style="margin-left:12px;font-size:13px;color:#495057;"></span>
         
@@ -67,7 +70,6 @@
         const highlightColors = ['#E15F99', '#1CA71C', '#FB0D0D', '#DA16FF', '#222A2A', '#B68100', '#750D86', '#EB663B', '#511CFB', '#00A08B']; 
         const baseColors = ['#7F3C8D', '#11A579', '#3969AC', '#F2B701', '#E73F74', '#80BA5A', '#E68310', '#008695', '#CF1C90', '#f97b72', '#4b4b8f', '#A5AA99'];
 
-        // Klasör yolları eklendi!
         const defaultFiles = ['data/ajeje+mori2026 antik.csv', 'data/mori2026 modern.csv', 'data/nostrat.csv'];
         
         window.onload = function() {
@@ -80,7 +82,6 @@
                     skipEmptyLines: true,
                     complete: function(results) {
                         const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
-                        // Klasör adını ve uzantıyı atarak temiz grup adı alıyoruz
                         const cleanName = fileUrl.split('/').pop().replace('.csv', '');
                         tempDatasets[index] = { group: cleanName, data: data };
                         loadedCount++;
@@ -194,7 +195,6 @@
                 buildDropdowns(maxDims);
             }
 
-            // Kalıcı Ayna: Her zaman PC1 ve PC3'ü -1 ile çarpar
             if (fullData.length > 0) {
                 for (let i = 0; i < fullData[0].length; i++) {
                     if (fullData[0][i] !== null) {
@@ -379,32 +379,66 @@
         function doSearch() {
             const q = document.getElementById('q').value.trim();
             const status = document.getElementById('status');
+            const resultSelect = document.getElementById('search-results');
+            
+            resultSelect.style.display = 'none';
+            resultSelect.innerHTML = '';
+            
             if (!q) return;
 
             const lower = q.toLowerCase();
-            let idx = -1;
+            let matches = [];
 
             for (let i = 0; i < sampleNames.length; i++) {
                 const n = sampleNames[i].toLowerCase();
                 if (n === lower || n.includes(lower)) {
-                    idx = i;
-                    break;
+                    matches.push({idx: i, name: sampleNames[i]});
                 }
             }
 
-            if (idx === -1) {
+            if (matches.length === 0) {
                 status.textContent = "Bulunamadı: " + q;
                 status.style.color = "#c0392b";
-                return;
-            }
+            } else if (matches.length === 1) {
+                addHighlight(matches[0].idx, matches[0].name);
+            } else {
+                status.textContent = matches.length + " eşleşme bulundu. Seçin:";
+                status.style.color = "#227093";
+                
+                let defaultOpt = document.createElement('option');
+                defaultOpt.text = "Sonuçlardan seçin (" + matches.length + ")";
+                defaultOpt.value = "";
+                resultSelect.appendChild(defaultOpt);
 
-            const name = sampleNames[idx];
+                matches.forEach(m => {
+                    let opt = document.createElement('option');
+                    opt.value = m.idx;
+                    opt.text = m.name;
+                    resultSelect.appendChild(opt);
+                });
+                resultSelect.style.display = 'inline-block';
+            }
+        }
+
+        function addSelectedHighlight() {
+            const sel = document.getElementById('search-results');
+            const val = sel.value;
+            if(!val) return;
             
+            const idx = parseInt(val);
+            const name = sampleNames[idx];
+            addHighlight(idx, name);
+            
+            // Reset dropdown
+            sel.selectedIndex = 0;
+        }
+
+        function addHighlight(idx, name) {
             if (!highlights.some(h => h.idx === idx)) {
                 highlights.push({idx: idx, name: name});
                 updateHighlights();
             }
-
+            const status = document.getElementById('status');
             status.textContent = "Eklendi → " + name;
             status.style.color = "#27ae60";
         }
@@ -414,6 +448,10 @@
             updateHighlights();
             document.getElementById('status').textContent = "";
             document.getElementById('q').value = "";
+            
+            const sel = document.getElementById('search-results');
+            sel.innerHTML = '';
+            sel.style.display = 'none';
         }
     </script>
 </body>
