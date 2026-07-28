@@ -28,17 +28,17 @@
         
         <span class="axis-group">
             <select id="sel-x" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
-            <label style="font-size:12px;cursor:pointer;" title="Ekseni görsel olarak ters çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">Ters</label>
+            <label style="font-size:12px;cursor:pointer;" title="İşareti tersine çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">Ters</label>
         </span>
         
         <span class="axis-group">
             <select id="sel-y" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
-            <label style="font-size:12px;cursor:pointer;" title="Ekseni görsel olarak ters çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">Ters</label>
+            <label style="font-size:12px;cursor:pointer;" title="İşareti tersine çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">Ters</label>
         </span>
         
         <span class="axis-group">
             <select id="sel-z" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
-            <label style="font-size:12px;cursor:pointer;" title="Ekseni görsel olarak ters çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">Ters</label>
+            <label style="font-size:12px;cursor:pointer;" title="İşareti tersine çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">Ters</label>
         </span>
 
         <span class="divider"></span>
@@ -195,17 +195,6 @@
                 buildDropdowns(maxDims);
             }
 
-            if (fullData.length > 0) {
-                for (let i = 0; i < fullData[0].length; i++) {
-                    if (fullData[0][i] !== null) {
-                        fullData[0][i] = -fullData[0][i];
-                    }
-                    if (fullData.length > 2 && fullData[2][i] !== null) {
-                        fullData[2][i] = -fullData[2][i];
-                    }
-                }
-            }
-
             drawInitialPlot();
         }
 
@@ -254,17 +243,22 @@
             const dimY = parseInt(document.getElementById('sel-y').value);
             const dimZ = parseInt(document.getElementById('sel-z').value);
 
-            const rx = document.getElementById('rev-x').checked ? 'reversed' : true;
-            const ry = document.getElementById('rev-y').checked ? 'reversed' : true;
-            const rz = document.getElementById('rev-z').checked ? 'reversed' : true;
+            // X ve Z eksenleri varsayılan olarak (işaretsizken) ters çevrilir.
+            // Y ekseni varsayılan olarak (işaretsizken) normaldir.
+            const signX = document.getElementById('rev-x').checked ? 1 : -1;
+            const signY = document.getElementById('rev-y').checked ? -1 : 1;
+            const signZ = document.getElementById('rev-z').checked ? 1 : -1;
 
             const traces = [];
 
             for(let i = 0; i < groupNames.length; i++) {
                 const indices = traceIndices[i];
-                const gx = indices.map(idx => fullData[dimX][idx]);
-                const gy = indices.map(idx => fullData[dimY][idx]);
-                const gz = indices.map(idx => fullData[dimZ][idx]);
+                
+                // Matematiksel çarpımı tam Plotly'ye gönderirken yapıyoruz, null'ları koruyarak!
+                const gx = indices.map(idx => fullData[dimX][idx] === null ? null : fullData[dimX][idx] * signX);
+                const gy = indices.map(idx => fullData[dimY][idx] === null ? null : fullData[dimY][idx] * signY);
+                const gz = indices.map(idx => fullData[dimZ][idx] === null ? null : fullData[dimZ][idx] * signZ);
+                
                 const gnames = indices.map(idx => sampleNames[idx]);
                 const color = baseColors[i % baseColors.length];
 
@@ -295,9 +289,9 @@
             const layout = {
                 title: titleText,
                 scene: {
-                    xaxis: {title: 'PC' + (dimX+1), autorange: rx},
-                    yaxis: {title: 'PC' + (dimY+1), autorange: ry},
-                    zaxis: {title: 'PC' + (dimZ+1), autorange: rz},
+                    xaxis: {title: 'PC' + (dimX+1)},
+                    yaxis: {title: 'PC' + (dimY+1)},
+                    zaxis: {title: 'PC' + (dimZ+1)},
                     annotations: []
                 },
                 template: "plotly_white",
@@ -315,9 +309,9 @@
             const dimZ = parseInt(document.getElementById('sel-z').value);
             const gd = document.getElementById('g25plot');
             
-            const rx = document.getElementById('rev-x').checked ? 'reversed' : true;
-            const ry = document.getElementById('rev-y').checked ? 'reversed' : true;
-            const rz = document.getElementById('rev-z').checked ? 'reversed' : true;
+            const signX = document.getElementById('rev-x').checked ? 1 : -1;
+            const signY = document.getElementById('rev-y').checked ? -1 : 1;
+            const signZ = document.getElementById('rev-z').checked ? 1 : -1;
 
             const x_update = [];
             const y_update = [];
@@ -326,15 +320,15 @@
 
             for(let i = 0; i < traceIndices.length; i++) {
                 const indices = traceIndices[i];
-                x_update.push(indices.map(idx => fullData[dimX][idx]));
-                y_update.push(indices.map(idx => fullData[dimY][idx]));
-                z_update.push(indices.map(idx => fullData[dimZ][idx]));
+                x_update.push(indices.map(idx => fullData[dimX][idx] === null ? null : fullData[dimX][idx] * signX));
+                y_update.push(indices.map(idx => fullData[dimY][idx] === null ? null : fullData[dimY][idx] * signY));
+                z_update.push(indices.map(idx => fullData[dimZ][idx] === null ? null : fullData[dimZ][idx] * signZ));
                 ht_update.push("<b>%{customdata}</b><br>" + groupNames[i] + "<br>PC" + (dimX+1) + ": %{x:.5f}<br>PC" + (dimY+1) + ": %{y:.5f}<br>PC" + (dimZ+1) + ": %{z:.5f}<extra></extra>");
             }
 
-            const hx = highlights.map(h => fullData[dimX][h.idx]);
-            const hy = highlights.map(h => fullData[dimY][h.idx]);
-            const hz = highlights.map(h => fullData[dimZ][h.idx]);
+            const hx = highlights.map(h => fullData[dimX][h.idx] === null ? null : fullData[dimX][h.idx] * signX);
+            const hy = highlights.map(h => fullData[dimY][h.idx] === null ? null : fullData[dimY][h.idx] * signY);
+            const hz = highlights.map(h => fullData[dimZ][h.idx] === null ? null : fullData[dimZ][h.idx] * signZ);
             
             x_update.push(hx);
             y_update.push(hy);
@@ -347,11 +341,8 @@
 
             Plotly.relayout(gd, {
                 'scene.xaxis.title.text': 'PC' + (dimX+1),
-                'scene.xaxis.autorange': rx,
                 'scene.yaxis.title.text': 'PC' + (dimY+1),
-                'scene.yaxis.autorange': ry,
                 'scene.zaxis.title.text': 'PC' + (dimZ+1),
-                'scene.zaxis.autorange': rz,
                 'scene.annotations': getAnnotations(hx, hy, hz)
             });
         }
@@ -362,9 +353,13 @@
             const dimY = parseInt(document.getElementById('sel-y').value);
             const dimZ = parseInt(document.getElementById('sel-z').value);
 
-            const hx = highlights.map(h => fullData[dimX][h.idx]);
-            const hy = highlights.map(h => fullData[dimY][h.idx]);
-            const hz = highlights.map(h => fullData[dimZ][h.idx]);
+            const signX = document.getElementById('rev-x').checked ? 1 : -1;
+            const signY = document.getElementById('rev-y').checked ? -1 : 1;
+            const signZ = document.getElementById('rev-z').checked ? 1 : -1;
+
+            const hx = highlights.map(h => fullData[dimX][h.idx] === null ? null : fullData[dimX][h.idx] * signX);
+            const hy = highlights.map(h => fullData[dimY][h.idx] === null ? null : fullData[dimY][h.idx] * signY);
+            const hz = highlights.map(h => fullData[dimZ][h.idx] === null ? null : fullData[dimZ][h.idx] * signZ);
             const hcolors = highlights.map((_, i) => highlightColors[i % highlightColors.length]);
             
             Plotly.restyle(gd, {
