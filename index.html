@@ -2,66 +2,126 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>G25 3D PCA Plotter</title>
+    <title>G25 3D PCA Plotter - CYBERPUNK EDITION</title>
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
     <style>
-        body, html { margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-family: system-ui, sans-serif; }
-        #g25plot { flex-grow: 1; width: 100%; }
-        .control-panel { padding:10px 16px; background:#f1f3f5; border-bottom:1px solid #dee2e6; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-        .divider { border-left:1px solid #ccc; height:24px; margin:0 5px; }
-        .cb-label { font-weight:600; display:flex; align-items:center; gap:5px; cursor:pointer; color:#b71c1c; }
-        .axis-group { display:flex; align-items:center; gap:3px; }
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
         
-        #hl-container { padding: 8px 16px; background: #e9ecef; display: none; gap: 8px; flex-wrap: wrap; border-bottom: 1px solid #ced4da; }
-        .hl-chip { color: #fff; border-radius: 6px; padding: 4px 8px; display: flex; align-items: center; gap: 6px; font-size: 13px; border: 1px solid #111; box-shadow: 0 2px 4px rgba(0,0,0,0.15); }
-        .hl-btn { background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.3); color: white; border-radius: 4px; cursor: pointer; padding: 2px 6px; font-size: 11px; display:flex; align-items:center; justify-content:center; transition: 0.1s;}
-        .hl-btn:hover { background: rgba(0,0,0,0.5); }
-        .hl-del { background: #d63031; border: 1px solid #2d3436; color: white; border-radius: 4px; cursor: pointer; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; font-size: 11px; margin-left: 4px; font-weight: bold; transition: 0.1s;}
-        .hl-del:hover { background: #ff7675; }
+        body, html { 
+            margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; 
+            font-family: 'Share Tech Mono', monospace; background-color: #050507; color: #00ffcc; 
+        }
+        
+        #g25plot { flex-grow: 1; width: 100%; background: #050507; }
+        
+        .control-panel { 
+            padding: 12px 16px; background: #0a0a0e; border-bottom: 2px solid #ff00ff; 
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap; 
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.2); 
+        }
+        
+        .divider { border-left: 1px solid #333; height: 24px; margin: 0 2px; }
+        
+        .cb-label { 
+            font-weight: bold; display: flex; align-items: center; gap: 5px; cursor: pointer; 
+            color: #ff00ff; text-shadow: 0 0 5px rgba(255, 0, 255, 0.6); letter-spacing: 1px;
+        }
+        
+        .chk-label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; color: #00ffcc;}
+        .axis-group { display: flex; align-items: center; gap: 5px; }
+        
+        select, input[type="text"], input[type="file"] { 
+            background: #111116; color: #00ffcc; border: 1px solid #00ffcc; padding: 6px; 
+            border-radius: 2px; font-family: 'Share Tech Mono', monospace; outline: none;
+            box-shadow: inset 0 0 5px rgba(0, 255, 204, 0.1);
+        }
+        
+        select:focus, input[type="text"]:focus { box-shadow: 0 0 8px rgba(0, 255, 204, 0.5); }
+        
+        button { font-family: 'Share Tech Mono', monospace; text-transform: uppercase; font-weight: bold; }
+        
+        .btn-search { 
+            padding: 7px 18px; background: transparent; color: #00ffcc; border: 1px solid #00ffcc; 
+            border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #00ffcc; 
+            box-shadow: inset 0 0 5px rgba(0,255,204,0.3); transition: 0.2s; 
+        }
+        .btn-search:hover { background: #00ffcc; color: #000; box-shadow: 0 0 10px #00ffcc; }
+        
+        .btn-clear { 
+            padding: 7px 14px; background: transparent; color: #ff00ff; border: 1px solid #ff00ff; 
+            border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #ff00ff; 
+            box-shadow: inset 0 0 5px rgba(255,0,255,0.3); transition: 0.2s; 
+        }
+        .btn-clear:hover { background: #ff00ff; color: #000; box-shadow: 0 0 10px #ff00ff; }
+        
+        #status { font-weight: bold; letter-spacing: 1px; }
+
+        #hl-container { 
+            padding: 10px 16px; background: #0a0a0e; display: none; gap: 8px; 
+            flex-wrap: wrap; border-bottom: 1px solid #222; box-shadow: inset 0px 5px 10px rgba(0,0,0,0.5);
+        }
+        .hl-chip { 
+            color: #fff; border-radius: 2px; padding: 4px 8px; display: flex; align-items: center; 
+            gap: 6px; font-size: 13px; border: 1px solid #fff; box-shadow: 0 0 8px rgba(255,255,255,0.3); 
+            text-shadow: 1px 1px 2px #000; font-weight: bold;
+        }
+        .hl-btn { 
+            background: rgba(0,0,0,0.6); border: 1px solid #00ffcc; color: #00ffcc; border-radius: 2px; 
+            cursor: pointer; padding: 2px 6px; font-size: 11px; display: flex; align-items: center; 
+            justify-content: center; transition: 0.2s;
+        }
+        .hl-btn:hover { background: #00ffcc; color: #000; }
+        
+        .hl-del { 
+            background: transparent; border: 1px solid #ff00ff; color: #ff00ff; border-radius: 2px; 
+            cursor: pointer; width: 22px; height: 22px; display: flex; align-items: center; 
+            justify-content: center; font-size: 11px; margin-left: 4px; font-weight: bold; transition: 0.2s; 
+        }
+        .hl-del:hover { background: #ff00ff; color: #000; box-shadow: 0 0 8px #ff00ff; }
     </style>
 </head>
 <body>
     <div class="control-panel">
         <label class="cb-label" title="Tüm numuneler birleştirilerek tek bir PCA hesaplar">
             <input type="checkbox" id="cb-custom-pca" onchange="rebuildData()" checked>
-            Özel PCA
+            ÖZËL PCA
         </label>
 
         <span class="divider"></span>
 
-        <label style="font-weight:600;white-space:nowrap;">Eksenler:</label>
+        <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">EKSËNLËR:</label>
         
         <span class="axis-group">
-            <select id="sel-x" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
-            <label style="font-size:12px;cursor:pointer;" title="İşareti tersine çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">Ters</label>
+            <select id="sel-x" onchange="updateAxes()"></select>
+            <label class="chk-label" title="İşareti tersine çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">TËRS</label>
         </span>
         
         <span class="axis-group">
-            <select id="sel-y" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
-            <label style="font-size:12px;cursor:pointer;" title="İşareti tersine çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">Ters</label>
+            <select id="sel-y" onchange="updateAxes()"></select>
+            <label class="chk-label" title="İşareti tersine çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">TËRS</label>
         </span>
         
         <span class="axis-group">
-            <select id="sel-z" onchange="updateAxes()" style="padding:5px;border-radius:4px;border:1px solid #ced4da;"></select>
-            <label style="font-size:12px;cursor:pointer;" title="İşareti tersine çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">Ters</label>
+            <select id="sel-z" onchange="updateAxes()"></select>
+            <label class="chk-label" title="İşareti tersine çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">TËRS</label>
         </span>
 
         <span class="divider"></span>
 
-        <label style="font-weight:600;white-space:nowrap;">Ara:</label>
-        <input id="q" type="text" placeholder="Numune..." style="flex:1;max-width:200px;padding:7px;font-size:14px;border:1px solid #ced4da;border-radius:4px;" onkeydown="if(event.key === 'Enter') doSearch()">
-        <button onclick="doSearch()" style="padding:7px 18px;background:#2c7bb6;color:white;border:none;border-radius:4px;cursor:pointer;">Bul</button>
+        <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">ARA:</label>
+        <input id="q" type="text" placeholder="Numuune girin..." style="flex:1; max-width:180px;" onkeydown="if(event.key === 'Enter') doSearch()">
+        <button onclick="doSearch()" class="btn-search">BUL</button>
         
-        <select id="search-results" onchange="addSelectedHighlight()" style="display:none;padding:6px;border-radius:4px;border:1px solid #ced4da;max-width:200px;"></select>
+        <select id="search-results" onchange="addSelectedHighlight()" style="display:none; max-width:200px;"></select>
 
-        <button onclick="doClear()" style="padding:7px 14px;background:#6c757d;color:white;border:none;border-radius:4px;cursor:pointer;">Temizle</button>
-        <span id="status" style="margin-left:12px;font-size:13px;color:#495057;"></span>
+        <button onclick="doClear()" class="btn-clear">TEMİZLE</button>
+        <span id="status"></span>
         
         <span class="divider"></span>
 
-        <label style="font-weight:600;">📁 Yükle:</label>
+        <label style="font-weight:bold; letter-spacing:1px; color:#ff00ff;">YÜKLE:</label>
         <input type="file" id="file-input" multiple accept=".csv" />
     </div>
     
@@ -76,10 +136,10 @@
         let highlights = [];
         let rawDatasets = [];
 
-        const highlightColors = ['#E15F99', '#1CA71C', '#FB0D0D', '#DA16FF', '#222A2A', '#B68100', '#750D86', '#EB663B', '#511CFB', '#00A08B']; 
-        const baseColors = ['#7F3C8D', '#11A579', '#3969AC', '#F2B701', '#E73F74', '#80BA5A', '#E68310', '#008695', '#CF1C90', '#f97b72', '#4b4b8f', '#A5AA99'];
+        const highlightColors = ['#ff0055', '#00ffcc', '#ff00ff', '#f39c12', '#00e5ff', '#ffff00', '#ff3300', '#9900ff', '#33ff00', '#ffffff']; 
+        const baseColors = ['#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#27ae60', '#e67e22', '#1abc9c', '#ff66b2', '#ff9999', '#7f8c8d', '#d4efdf'];
 
-        const defaultFiles = ['data/ajeje+mori2026 antik.csv', 'data/mori2026 modern.csv', 'data/nostrat.csv'];
+        const defaultFiles = ['data/ajeje+mori2026 antik.csv', 'data/mori2026 modërn.csv', 'data/nostrat.csv'];
         
         window.onload = function() {
             let loadedCount = 0;
@@ -247,9 +307,9 @@
                     showarrow: true,
                     arrowhead: 0,
                     ax: h.ax, ay: h.ay,
-                    font: { size: 12, color: "#ffffff", family: "system-ui, sans-serif" },
+                    font: { size: 12, color: "#ffffff", family: "'Share Tech Mono', monospace" },
                     bgcolor: color,
-                    bordercolor: "#111111",
+                    bordercolor: "#ffffff",
                     borderwidth: 1.5,
                     borderpad: 4
                 };
@@ -280,7 +340,7 @@
                     type: 'scatter3d',
                     x: gx, y: gy, z: gz,
                     mode: "markers",
-                    marker: {size: 3.5, opacity: 0.78, color: color},
+                    marker: {size: 3.5, opacity: 0.8, color: color, line: {width: 0.5, color: '#111'}},
                     customdata: gnames,
                     hovertemplate: "<b>%{customdata}</b><br>" + groupNames[i] + "<br>PC" + (dimX+1) + ": %{x:.5f}<br>PC" + (dimY+1) + ": %{y:.5f}<br>PC" + (dimZ+1) + ": %{z:.5f}<extra></extra>",
                     name: groupNames[i]
@@ -291,26 +351,31 @@
                 type: 'scatter3d',
                 x: [], y: [], z: [],
                 mode: "markers",
-                marker: { size: 8, symbol: "circle", opacity: 1, line: {width: 2, color: "#111111"} },
+                marker: { size: 8, symbol: "circle", opacity: 1, line: {width: 2.5, color: "#ffffff"} },
                 hoverinfo: "skip",
                 showlegend: false,
                 name: "vurgular"
             });
             
             const doCustomPCA = document.getElementById('cb-custom-pca').checked;
-            let titleText = doCustomPCA ? "G25 3D PCA (Özel Birleştirilmiş PCA)" : "G25 3D PCA";
+            let titleText = doCustomPCA ? "G25 3D PCA [Özël Birleştirilmiş PCA]" : "G25 3D PCA";
 
             const layout = {
-                title: titleText,
+                title: {
+                    text: titleText,
+                    font: { color: '#00ffcc', family: "'Share Tech Mono', monospace", size: 18 }
+                },
                 scene: {
-                    xaxis: {title: 'PC' + (dimX+1)},
-                    yaxis: {title: 'PC' + (dimY+1)},
-                    zaxis: {title: 'PC' + (dimZ+1)},
+                    xaxis: {title: 'PC' + (dimX+1), gridcolor: '#222', zerolinecolor: '#ff00ff', backgroundcolor: 'rgba(0,0,0,0)'},
+                    yaxis: {title: 'PC' + (dimY+1), gridcolor: '#222', zerolinecolor: '#00ffcc', backgroundcolor: 'rgba(0,0,0,0)'},
+                    zaxis: {title: 'PC' + (dimZ+1), gridcolor: '#222', zerolinecolor: '#ff00ff', backgroundcolor: 'rgba(0,0,0,0)'},
                     annotations: []
                 },
-                template: "plotly_white",
+                paper_bgcolor: '#050507',
+                plot_bgcolor: '#050507',
+                template: "plotly_dark",
                 margin: {t: 70, b: 50, l: 60, r: 220},
-                legend: {font: {size: 11}}
+                legend: {font: {size: 12, color: '#e0e0e0', family: "'Share Tech Mono', monospace"}}
             };
 
             Plotly.newPlot('g25plot', traces, layout);
@@ -406,16 +471,18 @@
             }
 
             if (matches.length === 0) {
-                status.textContent = "Bulunamadı: " + q;
-                status.style.color = "#c0392b";
+                status.textContent = "HATA: VERİ BULUNAMADI [" + q + "]";
+                status.style.color = "#ff0055";
+                status.style.textShadow = "0 0 5px #ff0055";
             } else if (matches.length === 1) {
                 addHighlight(matches[0].idx, matches[0].name);
             } else {
-                status.textContent = matches.length + " eşleşme bulundu. Seçin:";
-                status.style.color = "#227093";
+                status.textContent = matches.length + " EŞLEŞME. SEÇİM YAPIN:";
+                status.style.color = "#00ffcc";
+                status.style.textShadow = "0 0 5px #00ffcc";
                 
                 let defaultOpt = document.createElement('option');
-                defaultOpt.text = "Sonuçlardan seçin (" + matches.length + ")";
+                defaultOpt.text = "SONUÇLAR (" + matches.length + ")";
                 defaultOpt.value = "";
                 resultSelect.appendChild(defaultOpt);
 
@@ -448,8 +515,9 @@
                 renderHighlightChips();
             }
             const status = document.getElementById('status');
-            status.textContent = "Eklendi → " + name;
-            status.style.color = "#27ae60";
+            status.textContent = "SİSTEME EKLENDİ → " + name;
+            status.style.color = "#ff00ff";
+            status.style.textShadow = "0 0 5px #ff00ff";
         }
 
         function renderHighlightChips() {
@@ -470,11 +538,11 @@
                 
                 chip.innerHTML = `
                     <span><b>${shorten(h.name)}</b></span>
-                    <button class="hl-btn" onclick="nudge(${i}, 0, -15)" title="Yukarı taşı">▲</button>
-                    <button class="hl-btn" onclick="nudge(${i}, 0, 15)" title="Aşağı taşı">▼</button>
-                    <button class="hl-btn" onclick="nudge(${i}, -15, 0)" title="Sola taşı">◄</button>
-                    <button class="hl-btn" onclick="nudge(${i}, 15, 0)" title="Sağa taşı">►</button>
-                    <button class="hl-del" onclick="removeHighlight(${i})" title="Bu vurguyu kaldır">✖</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 0, -15)" title="Yukarı">▲</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 0, 15)" title="Aşağı">▼</button>
+                    <button class="hl-btn" onclick="nudge(${i}, -15, 0)" title="Sola">◄</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 15, 0)" title="Sağa">►</button>
+                    <button class="hl-del" onclick="removeHighlight(${i})" title="Sil">✖</button>
                 `;
                 container.appendChild(chip);
             });
