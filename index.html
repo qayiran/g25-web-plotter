@@ -2,7 +2,10 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>G25 3D PCA Plotter - CYBERPUNK EDITION</title>
+    <title>G25 3D PCA Çizici</title>
+    
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    
     <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
@@ -32,6 +35,8 @@
         .chk-label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; color: #00ffcc;}
         .axis-group { display: flex; align-items: center; gap: 5px; }
         
+        .locked-group { display: flex; align-items: center; gap: 8px; }
+        
         select, input[type="text"], input[type="file"] { 
             background: #111116; color: #00ffcc; border: 1px solid #00ffcc; padding: 6px; 
             border-radius: 2px; font-family: 'Share Tech Mono', monospace; outline: none;
@@ -49,6 +54,13 @@
         }
         .btn-search:hover { background: #00ffcc; color: #000; box-shadow: 0 0 10px #00ffcc; }
         
+        .btn-paste { 
+            padding: 7px 18px; background: transparent; color: #f39c12; border: 1px solid #f39c12; 
+            border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #f39c12; 
+            box-shadow: inset 0 0 5px rgba(243,156,18,0.3); transition: 0.2s; 
+        }
+        .btn-paste:hover { background: #f39c12; color: #000; box-shadow: 0 0 10px #f39c12; }
+        
         .btn-clear { 
             padding: 7px 14px; background: transparent; color: #ff00ff; border: 1px solid #ff00ff; 
             border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #ff00ff; 
@@ -56,8 +68,6 @@
         }
         .btn-clear:hover { background: #ff00ff; color: #000; box-shadow: 0 0 10px #ff00ff; }
         
-        #status { font-weight: bold; letter-spacing: 1px; }
-
         #hl-container { 
             padding: 10px 16px; background: #0a0a0e; display: none; gap: 8px; 
             flex-wrap: wrap; border-bottom: 1px solid #222; box-shadow: inset 0px 5px 10px rgba(0,0,0,0.5);
@@ -84,7 +94,7 @@
 </head>
 <body>
     <div class="control-panel">
-        <label class="cb-label" title="Tüm numuneler birleştirilerek tek bir PCA hesaplar">
+        <label class="cb-label" title="Tüm numuuneleri birleştirerek tek bir PCA hesaplar">
             <input type="checkbox" id="cb-custom-pca" onchange="rebuildData()" checked>
             ÖZËL PCA
         </label>
@@ -95,34 +105,43 @@
         
         <span class="axis-group">
             <select id="sel-x" onchange="updateAxes()"></select>
-            <label class="chk-label" title="İşareti tersine çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">TËRS</label>
+            <label class="chk-label" title="Ekseni tërsine çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">TËRS</label>
         </span>
         
         <span class="axis-group">
             <select id="sel-y" onchange="updateAxes()"></select>
-            <label class="chk-label" title="İşareti tersine çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">TËRS</label>
+            <label class="chk-label" title="Ekseni tërsine çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">TËRS</label>
         </span>
         
         <span class="axis-group">
             <select id="sel-z" onchange="updateAxes()"></select>
-            <label class="chk-label" title="İşareti tersine çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">TËRS</label>
+            <label class="chk-label" title="Ekseni tërsine çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">TËRS</label>
         </span>
 
         <span class="divider"></span>
 
-        <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">ARA:</label>
-        <input id="q" type="text" placeholder="Numuune girin..." style="flex:1; max-width:180px;" onkeydown="if(event.key === 'Enter') doSearch()">
-        <button onclick="doSearch()" class="btn-search">BUL</button>
-        
-        <select id="search-results" onchange="addSelectedHighlight()" style="display:none; max-width:200px;"></select>
+        <div class="locked-group">
+            <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">ARA:</label>
+            <input id="q" type="text" placeholder="Numuune girin..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') doSearch()">
+            <button onclick="doSearch()" class="btn-search">BUL</button>
+            <select id="search-results" onchange="addSelectedHighlight()" style="display:none; max-width:160px;"></select>
+            <button onclick="doClear()" class="btn-clear">TEMİZLE</button>
+        </div>
 
-        <button onclick="doClear()" class="btn-clear">TEMİZLE</button>
-        <span id="status"></span>
+        <span class="divider"></span>
         
+        <div class="locked-group">
+            <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#f39c12;">YAPIŞTIR:</label>
+            <input id="paste-coord" type="text" placeholder="Örn: İsim,0.12..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') addPastedCoord()">
+            <button onclick="addPastedCoord()" class="btn-paste">EKLE</button>
+        </div>
+
         <span class="divider"></span>
 
-        <label style="font-weight:bold; letter-spacing:1px; color:#ff00ff;">YÜKLE:</label>
-        <input type="file" id="file-input" multiple accept=".csv" />
+        <div class="locked-group">
+            <label style="font-weight:bold; letter-spacing:1px; color:#ff00ff;">YÜKLE:</label>
+            <input type="file" id="file-input" multiple accept="text/plain,text/csv,.csv,.txt" />
+        </div>
     </div>
     
     <div id="hl-container"></div>
@@ -151,7 +170,8 @@
                     skipEmptyLines: true,
                     complete: function(results) {
                         const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
-                        const cleanName = fileUrl.split('/').pop().replace('.csv', '');
+                        let fName = fileUrl.split('/').pop();
+                        let cleanName = fName.includes('.') ? fName.substring(0, fName.lastIndexOf('.')) : fName;
                         tempDatasets[index] = { group: cleanName, data: data };
                         loadedCount++;
                         if(loadedCount === defaultFiles.length) {
@@ -180,13 +200,48 @@
                     skipEmptyLines: true,
                     complete: function(results) {
                         const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
-                        rawDatasets.push({ group: file.name.replace('.csv', ''), data: data });
+                        let fName = file.name;
+                        let cleanName = fName.includes('.') ? fName.substring(0, fName.lastIndexOf('.')) : fName;
+                        rawDatasets.push({ group: cleanName, data: data });
                         filesProcessed++;
                         if (filesProcessed === files.length) rebuildData();
                     }
                 });
             });
         });
+
+        function addPastedCoord() {
+            const input = document.getElementById('paste-coord');
+            const val = input.value.trim();
+            if (!val) return;
+
+            Papa.parse(val, {
+                complete: function(results) {
+                    const row = results.data[0];
+                    if (row && row.length >= 2 && !isNaN(parseFloat(row[1]))) {
+                        let manualGroup = rawDatasets.find(ds => ds.group === 'manuël veri');
+                        if (!manualGroup) {
+                            manualGroup = { group: 'manuël veri', data: [] };
+                            rawDatasets.push(manualGroup);
+                        }
+                        manualGroup.data.push(row);
+                        input.value = '';
+                        
+                        rebuildData();
+                        
+                        setTimeout(() => {
+                            const newIdx = sampleNames.lastIndexOf(row[0]);
+                            if(newIdx !== -1) {
+                                addHighlight(newIdx, row[0]);
+                            }
+                        }, 50);
+
+                    } else {
+                        alert("HATAA: GEÇËRSİZ KOORDİNAT BİÇİMİ!");
+                    }
+                }
+            });
+        }
 
         function rebuildData() {
             sampleNames = [];
@@ -213,6 +268,16 @@
                 });
                 traceIndices.push(indices);
             });
+
+            let newHighlights = [];
+            for (let h of highlights) {
+                let newIdx = sampleNames.indexOf(h.name);
+                if (newIdx !== -1) {
+                    h.idx = newIdx;
+                    newHighlights.push(h);
+                }
+            }
+            highlights = newHighlights;
 
             if(sampleNames.length === 0) return;
             if(maxDims < 3) maxDims = 3;
@@ -349,7 +414,7 @@
 
             traces.push({
                 type: 'scatter3d',
-                x: [], y: [], z: [],
+                x: [null], y: [null], z: [null],
                 mode: "markers",
                 marker: { size: 8, symbol: "circle", opacity: 1, line: {width: 2.5, color: "#ffffff"} },
                 hoverinfo: "skip",
@@ -409,9 +474,11 @@
             const hy = highlights.map(h => fullData[dimY][h.idx] === null ? null : fullData[dimY][h.idx] * signY);
             const hz = highlights.map(h => fullData[dimZ][h.idx] === null ? null : fullData[dimZ][h.idx] * signZ);
             
-            x_update.push(hx);
-            y_update.push(hy);
-            z_update.push(hz);
+            let plotX = hx.length > 0 ? hx : [null];
+            
+            x_update.push(plotX);
+            y_update.push(hy.length > 0 ? hy : [null]);
+            z_update.push(hz.length > 0 ? hz : [null]);
             ht_update.push(undefined); 
 
             Plotly.restyle(gd, {
@@ -441,8 +508,13 @@
             const hz = highlights.map(h => fullData[dimZ][h.idx] === null ? null : fullData[dimZ][h.idx] * signZ);
             const hcolors = highlights.map((_, i) => highlightColors[i % highlightColors.length]);
             
+            let plotX = hx.length > 0 ? hx : [null];
+            let plotY = hy.length > 0 ? hy : [null];
+            let plotZ = hz.length > 0 ? hz : [null];
+            let plotC = hcolors.length > 0 ? hcolors : ['#ffffff'];
+
             Plotly.restyle(gd, {
-                x: [hx], y: [hy], z: [hz], 'marker.color': [hcolors]
+                x: [plotX], y: [plotY], z: [plotZ], 'marker.color': [plotC]
             }, [traceIndices.length]);
 
             Plotly.relayout(gd, {
@@ -452,7 +524,6 @@
 
         function doSearch() {
             const q = document.getElementById('q').value.trim();
-            const status = document.getElementById('status');
             const resultSelect = document.getElementById('search-results');
             
             resultSelect.style.display = 'none';
@@ -471,16 +542,10 @@
             }
 
             if (matches.length === 0) {
-                status.textContent = "HATA: VERİ BULUNAMADI [" + q + "]";
-                status.style.color = "#ff0055";
-                status.style.textShadow = "0 0 5px #ff0055";
+                alert("VERİ BULUNAMADI: " + q);
             } else if (matches.length === 1) {
                 addHighlight(matches[0].idx, matches[0].name);
             } else {
-                status.textContent = matches.length + " EŞLEŞME. SEÇİM YAPIN:";
-                status.style.color = "#00ffcc";
-                status.style.textShadow = "0 0 5px #00ffcc";
-                
                 let defaultOpt = document.createElement('option');
                 defaultOpt.text = "SONUÇLAR (" + matches.length + ")";
                 defaultOpt.value = "";
@@ -514,10 +579,6 @@
                 updateHighlights();
                 renderHighlightChips();
             }
-            const status = document.getElementById('status');
-            status.textContent = "SİSTEME EKLENDİ → " + name;
-            status.style.color = "#ff00ff";
-            status.style.textShadow = "0 0 5px #ff00ff";
         }
 
         function renderHighlightChips() {
@@ -557,16 +618,45 @@
         }
 
         function removeHighlight(index) {
+            const removedName = highlights[index].name;
             highlights.splice(index, 1);
-            updateHighlights();
+            
+            let manualGroupIdx = rawDatasets.findIndex(ds => ds.group === 'manuël veri');
+            let rebuilt = false;
+            
+            if (manualGroupIdx !== -1) {
+                let manualGroup = rawDatasets[manualGroupIdx];
+                let initialLength = manualGroup.data.length;
+                
+                manualGroup.data = manualGroup.data.filter(row => row[0] !== removedName);
+                
+                if (manualGroup.data.length < initialLength) {
+                    if (manualGroup.data.length === 0) {
+                        rawDatasets.splice(manualGroupIdx, 1);
+                    }
+                    rebuildData();
+                    rebuilt = true;
+                }
+            }
+            
+            if (!rebuilt) {
+                updateHighlights();
+            }
             renderHighlightChips();
         }
 
         function doClear() {
             highlights = [];
-            updateHighlights();
+            
+            let manualGroupIdx = rawDatasets.findIndex(ds => ds.group === 'manuël veri');
+            if (manualGroupIdx !== -1) {
+                rawDatasets.splice(manualGroupIdx, 1);
+                rebuildData();
+            } else {
+                updateHighlights();
+            }
+            
             renderHighlightChips();
-            document.getElementById('status').textContent = "";
             document.getElementById('q').value = "";
             
             const sel = document.getElementById('search-results');
