@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <title>G25 3D PCA Çizici</title>
+    
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
+    
+    <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/numeric/1.2.6/numeric.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        
+        body, html { 
+            margin: 0; padding: 0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; 
+            font-family: 'Share Tech Mono', monospace; background-color: #050507; color: #00ffcc; 
+        }
+        
+        #g25plot { flex-grow: 1; width: 100%; background: #050507; }
+        
+        .control-panel { 
+            padding: 12px 16px; background: #0a0a0e; border-bottom: 2px solid #ff00ff; 
+            display: flex; align-items: center; gap: 12px; flex-wrap: wrap; 
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.2); 
+        }
+        
+        .divider { border-left: 1px solid #333; height: 24px; margin: 0 2px; }
+        
+        .cb-label { 
+            font-weight: bold; display: flex; align-items: center; gap: 5px; cursor: pointer; 
+            color: #ff00ff; text-shadow: 0 0 5px rgba(255, 0, 255, 0.6); letter-spacing: 1px;
+        }
+        
+        .chk-label { font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 3px; color: #00ffcc;}
+        .axis-group { display: flex; align-items: center; gap: 5px; }
+        
+        .locked-group { display: flex; align-items: center; gap: 8px; }
+        
+        select, input[type="text"], input[type="file"] { 
+            background: #111116; color: #00ffcc; border: 1px solid #00ffcc; padding: 6px; 
+            border-radius: 2px; font-family: 'Share Tech Mono', monospace; outline: none;
+            box-shadow: inset 0 0 5px rgba(0, 255, 204, 0.1);
+        }
+        
+        select:focus, input[type="text"]:focus { box-shadow: 0 0 8px rgba(0, 255, 204, 0.5); }
+        
+        button { font-family: 'Share Tech Mono', monospace; text-transform: uppercase; font-weight: bold; }
+        
+        .btn-search { 
+            padding: 7px 18px; background: transparent; color: #00ffcc; border: 1px solid #00ffcc; 
+            border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #00ffcc; 
+            box-shadow: inset 0 0 5px rgba(0,255,204,0.3); transition: 0.2s; 
+        }
+        .btn-search:hover { background: #00ffcc; color: #000; box-shadow: 0 0 10px #00ffcc; }
+        
+        .btn-paste { 
+            padding: 7px 18px; background: transparent; color: #f39c12; border: 1px solid #f39c12; 
+            border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #f39c12; 
+            box-shadow: inset 0 0 5px rgba(243,156,18,0.3); transition: 0.2s; 
+        }
+        .btn-paste:hover { background: #f39c12; color: #000; box-shadow: 0 0 10px #f39c12; }
+        
+        .btn-clear { 
+            padding: 7px 14px; background: transparent; color: #ff00ff; border: 1px solid #ff00ff; 
+            border-radius: 2px; cursor: pointer; text-shadow: 0 0 5px #ff00ff; 
+            box-shadow: inset 0 0 5px rgba(255,0,255,0.3); transition: 0.2s; 
+        }
+        .btn-clear:hover { background: #ff00ff; color: #000; box-shadow: 0 0 10px #ff00ff; }
+        
+        #hl-container { 
+            padding: 10px 16px; background: #0a0a0e; display: none; gap: 8px; 
+            flex-wrap: wrap; border-bottom: 1px solid #222; box-shadow: inset 0px 5px 10px rgba(0,0,0,0.5);
+        }
+        .hl-chip { 
+            color: #fff; border-radius: 2px; padding: 4px 8px; display: flex; align-items: center; 
+            gap: 6px; font-size: 13px; border: 1px solid #fff; box-shadow: 0 0 8px rgba(255,255,255,0.3); 
+            text-shadow: 1px 1px 2px #000; font-weight: bold;
+        }
+        .hl-btn { 
+            background: rgba(0,0,0,0.6); border: 1px solid #00ffcc; color: #00ffcc; border-radius: 2px; 
+            cursor: pointer; padding: 2px 6px; font-size: 11px; display: flex; align-items: center; 
+            justify-content: center; transition: 0.2s;
+        }
+        .hl-btn:hover { background: #00ffcc; color: #000; }
+        
+        .hl-del { 
+            background: transparent; border: 1px solid #ff00ff; color: #ff00ff; border-radius: 2px; 
+            cursor: pointer; width: 22px; height: 22px; display: flex; align-items: center; 
+            justify-content: center; font-size: 11px; margin-left: 4px; font-weight: bold; transition: 0.2s; 
+        }
+        .hl-del:hover { background: #ff00ff; color: #000; box-shadow: 0 0 8px #ff00ff; }
+    </style>
+</head>
+<body>
+    <div class="control-panel">
+        <label class="cb-label" title="Tüm numuuneleri birleştirerek tek bir PCA hesaplar">
+            <input type="checkbox" id="cb-custom-pca" onchange="rebuildData()" checked>
+            ÖZËL PCA
+        </label>
+
+        <span class="divider"></span>
+
+        <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">EKSËNLËR:</label>
+        
+        <span class="axis-group">
+            <select id="sel-x" onchange="updateAxes()"></select>
+            <label class="chk-label" title="Ekseni tërsine çevir"><input type="checkbox" id="rev-x" onchange="updateAxes()">TËRS</label>
+        </span>
+        
+        <span class="axis-group">
+            <select id="sel-y" onchange="updateAxes()"></select>
+            <label class="chk-label" title="Ekseni tërsine çevir"><input type="checkbox" id="rev-y" onchange="updateAxes()">TËRS</label>
+        </span>
+        
+        <span class="axis-group">
+            <select id="sel-z" onchange="updateAxes()"></select>
+            <label class="chk-label" title="Ekseni tërsine çevir"><input type="checkbox" id="rev-z" onchange="updateAxes()">TËRS</label>
+        </span>
+
+        <span class="divider"></span>
+
+        <div class="locked-group">
+            <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">ARA:</label>
+            <input id="q" type="text" placeholder="Numuune girin..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') doSearch()">
+            <button onclick="doSearch()" class="btn-search">BUL</button>
+            <select id="search-results" onchange="addSelectedHighlight()" style="display:none; max-width:160px;"></select>
+            <button onclick="doClear()" class="btn-clear">TEMİZLE</button>
+        </div>
+
+        <span class="divider"></span>
+        
+        <div class="locked-group">
+            <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#f39c12;">YAPIŞTIR:</label>
+            <input id="paste-coord" type="text" placeholder="Örn: İsim,0.12..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') addPastedCoord()">
+            <button onclick="addPastedCoord()" class="btn-paste">EKLE</button>
+        </div>
+
+        <span class="divider"></span>
+
+        <div class="locked-group">
+            <label style="font-weight:bold; letter-spacing:1px; color:#ff00ff;">YÜKLE:</label>
+            <input type="file" id="file-input" multiple accept="text/plain,text/csv,.csv,.txt" />
+        </div>
+    </div>
+    
+    <div id="hl-container"></div>
+    <div id="g25plot"></div>
+
+    <script>
+        let sampleNames = [];
+        let fullData = []; 
+        let traceIndices = []; 
+        let groupNames = [];
+        let highlights = [];
+        let rawDatasets = [];
+
+        const highlightColors = ['#ff0055', '#00ffcc', '#ff00ff', '#f39c12', '#00e5ff', '#ffff00', '#ff3300', '#9900ff', '#33ff00', '#ffffff']; 
+        const baseColors = ['#9b59b6', '#2ecc71', '#3498db', '#f1c40f', '#e74c3c', '#27ae60', '#e67e22', '#1abc9c', '#ff66b2', '#ff9999', '#7f8c8d', '#d4efdf'];
+
+        const defaultFiles = ['data/ajeje+mori2026 antik.csv', 'data/mori2026 modërn.csv', 'data/nostrat.csv'];
+        
+        window.onload = function() {
+            let loadedCount = 0;
+            let tempDatasets = new Array(defaultFiles.length);
+            
+            defaultFiles.forEach((fileUrl, index) => {
+                Papa.parse(fileUrl, {
+                    download: true,
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
+                        let fName = fileUrl.split('/').pop();
+                        let cleanName = fName.includes('.') ? fName.substring(0, fName.lastIndexOf('.')) : fName;
+                        tempDatasets[index] = { group: cleanName, data: data };
+                        loadedCount++;
+                        if(loadedCount === defaultFiles.length) {
+                            tempDatasets.forEach(ds => { if(ds) rawDatasets.push(ds); });
+                            rebuildData();
+                        }
+                    },
+                    error: function() {
+                        console.error("Dosya yüklenemedi: " + fileUrl);
+                        loadedCount++;
+                        if(loadedCount === defaultFiles.length) {
+                            tempDatasets.forEach(ds => { if(ds) rawDatasets.push(ds); });
+                            rebuildData();
+                        }
+                    }
+                });
+            });
+        };
+
+        document.getElementById('file-input').addEventListener('change', function(e) {
+            const files = e.target.files;
+            if (files.length === 0) return;
+            let filesProcessed = 0;
+            Array.from(files).forEach((file) => {
+                Papa.parse(file, {
+                    skipEmptyLines: true,
+                    complete: function(results) {
+                        const data = results.data.filter(row => row.length >= 2 && row[1] !== "" && !isNaN(row[1]));
+                        let fName = file.name;
+                        let cleanName = fName.includes('.') ? fName.substring(0, fName.lastIndexOf('.')) : fName;
+                        rawDatasets.push({ group: cleanName, data: data });
+                        filesProcessed++;
+                        if (filesProcessed === files.length) rebuildData();
+                    }
+                });
+            });
+        });
+
+        function addPastedCoord() {
+            const input = document.getElementById('paste-coord');
+            const val = input.value.trim();
+            if (!val) return;
+
+            Papa.parse(val, {
+                complete: function(results) {
+                    const row = results.data[0];
+                    if (row && row.length >= 2 && !isNaN(parseFloat(row[1]))) {
+                        let manualGroup = rawDatasets.find(ds => ds.group === 'manuël veri');
+                        if (!manualGroup) {
+                            manualGroup = { group: 'manuël veri', data: [] };
+                            rawDatasets.push(manualGroup);
+                        }
+                        manualGroup.data.push(row);
+                        input.value = '';
+                        
+                        rebuildData();
+                        
+                        setTimeout(() => {
+                            const newIdx = sampleNames.lastIndexOf(row[0]);
+                            if(newIdx !== -1) {
+                                addHighlight(newIdx, row[0]);
+                            }
+                        }, 50);
+
+                    } else {
+                        alert("HATAA: GEÇËRSİZ KOORDİNAT BİÇİMİ!");
+                    }
+                }
+            });
+        }
+
+        function rebuildData() {
+            sampleNames = [];
+            groupNames = [];
+            traceIndices = [];
+            let tempCoords = [];
+            let currentIndex = 0;
+            let maxDims = 0;
+
+            rawDatasets.forEach(ds => {
+                if(!ds || ds.data.length === 0) return;
+                groupNames.push(ds.group);
+                let indices = [];
+                ds.data.forEach(row => {
+                    sampleNames.push(row[0]);
+                    indices.push(currentIndex++);
+                    let coords = [];
+                    for(let i=1; i<row.length; i++) {
+                        let val = parseFloat(row[i]);
+                        coords.push(isNaN(val) ? null : val);
+                    }
+                    if(coords.length > maxDims) maxDims = coords.length;
+                    tempCoords.push(coords);
+                });
+                traceIndices.push(indices);
+            });
+
+            let newHighlights = [];
+            for (let h of highlights) {
+                let newIdx = sampleNames.indexOf(h.name);
+                if (newIdx !== -1) {
+                    h.idx = newIdx;
+                    newHighlights.push(h);
+                }
+            }
+            highlights = newHighlights;
+
+            if(sampleNames.length === 0) return;
+            if(maxDims < 3) maxDims = 3;
+
+            const doCustomPCA = document.getElementById('cb-custom-pca').checked;
+
+            if (doCustomPCA && typeof numeric !== 'undefined') {
+                let X = tempCoords.map(row => {
+                    let newRow = [];
+                    for(let j=0; j<maxDims; j++) {
+                        let val = row[j];
+                        newRow.push((val === null || val === undefined) ? 0.0 : val);
+                    }
+                    return newRow;
+                });
+                
+                let n = X.length;
+                let m = maxDims;
+                
+                let means = new Array(m).fill(0);
+                for(let i=0; i<n; i++) for(let j=0; j<m; j++) means[j] += X[i][j];
+                for(let j=0; j<m; j++) means[j] /= n;
+                for(let i=0; i<n; i++) for(let j=0; j<m; j++) X[i][j] -= means[j];
+                
+                let XT = numeric.transpose(X);
+                let C = numeric.dot(XT, X);
+                let svd = numeric.svd(C);
+                
+                let transformed = numeric.dot(X, svd.U);
+                
+                let nComps = Math.min(n, m);
+                fullData = [];
+                for(let d=0; d<nComps; d++) {
+                    let dimData = [];
+                    for(let i=0; i<n; i++) dimData.push(transformed[i][d]);
+                    fullData.push(dimData);
+                }
+                buildDropdowns(nComps);
+            } else {
+                fullData = [];
+                for(let d=0; d<maxDims; d++) {
+                    let dimData = [];
+                    tempCoords.forEach(c => {
+                        if(d < c.length) dimData.push(c[d] !== null ? c[d] : null);
+                        else dimData.push(0.0);
+                    });
+                    fullData.push(dimData);
+                }
+                buildDropdowns(maxDims);
+            }
+
+            drawInitialPlot();
+        }
+
+        function buildDropdowns(dims) {
+            const selX = document.getElementById('sel-x');
+            const selY = document.getElementById('sel-y');
+            const selZ = document.getElementById('sel-z');
+            
+            let currX = selX.value ? parseInt(selX.value) : 0;
+            let currY = selY.value ? parseInt(selY.value) : 1;
+            let currZ = selZ.value ? parseInt(selZ.value) : 2;
+
+            selX.innerHTML = ''; selY.innerHTML = ''; selZ.innerHTML = '';
+
+            for(let i=0; i<dims; i++) {
+                let optX = document.createElement('option'); optX.value = i; optX.text = 'PC'+(i+1);
+                let optY = document.createElement('option'); optY.value = i; optY.text = 'PC'+(i+1);
+                let optZ = document.createElement('option'); optZ.value = i; optZ.text = 'PC'+(i+1);
+
+                if(i === currX) optX.selected = true;
+                if(i === currY) optY.selected = true;
+                if(i === currZ) optZ.selected = true;
+
+                selX.appendChild(optX);
+                selY.appendChild(optY);
+                selZ.appendChild(optZ);
+            }
+        }
+
+        function shorten(name) {
+            if (name.length > 30) return name.substring(0, 27) + "...";
+            return name;
+        }
+
+        function getAnnotations(hx, hy, hz) {
+            return highlights.map((h, i) => {
+                const color = highlightColors[i % highlightColors.length];
+                return {
+                    x: hx[i], y: hy[i], z: hz[i],
+                    text: "<b>" + shorten(h.name) + "</b>",
+                    showarrow: true,
+                    arrowhead: 0,
+                    ax: h.ax, ay: h.ay,
+                    font: { size: 12, color: "#ffffff", family: "'Share Tech Mono', monospace" },
+                    bgcolor: color,
+                    bordercolor: "#ffffff",
+                    borderwidth: 1.5,
+                    borderpad: 4
+                };
+            });
+        }
+
+        function drawInitialPlot() {
+            const dimX = parseInt(document.getElementById('sel-x').value);
+            const dimY = parseInt(document.getElementById('sel-y').value);
+            const dimZ = parseInt(document.getElementById('sel-z').value);
+
+            const signX = document.getElementById('rev-x').checked ? 1 : -1;
+            const signY = document.getElementById('rev-y').checked ? -1 : 1;
+            const signZ = document.getElementById('rev-z').checked ? 1 : -1;
+
+            const traces = [];
+
+            for(let i = 0; i < groupNames.length; i++) {
+                const indices = traceIndices[i];
+                const gx = indices.map(idx => fullData[dimX][idx] === null ? null : fullData[dimX][idx] * signX);
+                const gy = indices.map(idx => fullData[dimY][idx] === null ? null : fullData[dimY][idx] * signY);
+                const gz = indices.map(idx => fullData[dimZ][idx] === null ? null : fullData[dimZ][idx] * signZ);
+                
+                const gnames = indices.map(idx => sampleNames[idx]);
+                const color = baseColors[i % baseColors.length];
+
+                traces.push({
+                    type: 'scatter3d',
+                    x: gx, y: gy, z: gz,
+                    mode: "markers",
+                    marker: {size: 3.5, opacity: 0.8, color: color, line: {width: 0.5, color: '#111'}},
+                    customdata: gnames,
+                    hovertemplate: "<b>%{customdata}</b><br>" + groupNames[i] + "<br>PC" + (dimX+1) + ": %{x:.5f}<br>PC" + (dimY+1) + ": %{y:.5f}<br>PC" + (dimZ+1) + ": %{z:.5f}<extra></extra>",
+                    name: groupNames[i]
+                });
+            }
+
+            traces.push({
+                type: 'scatter3d',
+                x: [null], y: [null], z: [null],
+                mode: "markers",
+                marker: { size: 8, symbol: "circle", opacity: 1, line: {width: 2.5, color: "#ffffff"} },
+                hoverinfo: "skip",
+                showlegend: false,
+                name: "vurgular"
+            });
+            
+            const doCustomPCA = document.getElementById('cb-custom-pca').checked;
+            let titleText = doCustomPCA ? "G25 3D PCA [Özël Birleştirilmiş PCA]" : "G25 3D PCA";
+
+            const layout = {
+                title: {
+                    text: titleText,
+                    font: { color: '#00ffcc', family: "'Share Tech Mono', monospace", size: 18 }
+                },
+                scene: {
+                    xaxis: {title: 'PC' + (dimX+1), gridcolor: '#222', zerolinecolor: '#ff00ff', backgroundcolor: 'rgba(0,0,0,0)'},
+                    yaxis: {title: 'PC' + (dimY+1), gridcolor: '#222', zerolinecolor: '#00ffcc', backgroundcolor: 'rgba(0,0,0,0)'},
+                    zaxis: {title: 'PC' + (dimZ+1), gridcolor: '#222', zerolinecolor: '#ff00ff', backgroundcolor: 'rgba(0,0,0,0)'},
+                    annotations: []
+                },
+                paper_bgcolor: '#050507',
+                plot_bgcolor: '#050507',
+                template: "plotly_dark",
+                margin: {t: 70, b: 50, l: 60, r: 220},
+                legend: {font: {size: 12, color: '#e0e0e0', family: "'Share Tech Mono', monospace"}}
+            };
+
+            Plotly.newPlot('g25plot', traces, layout);
+            if(highlights.length > 0) updateHighlights();
+        }
+
+        function updateAxes() {
+            const dimX = parseInt(document.getElementById('sel-x').value);
+            const dimY = parseInt(document.getElementById('sel-y').value);
+            const dimZ = parseInt(document.getElementById('sel-z').value);
+            const gd = document.getElementById('g25plot');
+            
+            const signX = document.getElementById('rev-x').checked ? 1 : -1;
+            const signY = document.getElementById('rev-y').checked ? -1 : 1;
+            const signZ = document.getElementById('rev-z').checked ? 1 : -1;
+
+            const x_update = [];
+            const y_update = [];
+            const z_update = [];
+            const ht_update = [];
+
+            for(let i = 0; i < traceIndices.length; i++) {
+                const indices = traceIndices[i];
+                x_update.push(indices.map(idx => fullData[dimX][idx] === null ? null : fullData[dimX][idx] * signX));
+                y_update.push(indices.map(idx => fullData[dimY][idx] === null ? null : fullData[dimY][idx] * signY));
+                z_update.push(indices.map(idx => fullData[dimZ][idx] === null ? null : fullData[dimZ][idx] * signZ));
+                ht_update.push("<b>%{customdata}</b><br>" + groupNames[i] + "<br>PC" + (dimX+1) + ": %{x:.5f}<br>PC" + (dimY+1) + ": %{y:.5f}<br>PC" + (dimZ+1) + ": %{z:.5f}<extra></extra>");
+            }
+
+            const hx = highlights.map(h => fullData[dimX][h.idx] === null ? null : fullData[dimX][h.idx] * signX);
+            const hy = highlights.map(h => fullData[dimY][h.idx] === null ? null : fullData[dimY][h.idx] * signY);
+            const hz = highlights.map(h => fullData[dimZ][h.idx] === null ? null : fullData[dimZ][h.idx] * signZ);
+            
+            let plotX = hx.length > 0 ? hx : [null];
+            
+            x_update.push(plotX);
+            y_update.push(hy.length > 0 ? hy : [null]);
+            z_update.push(hz.length > 0 ? hz : [null]);
+            ht_update.push(undefined); 
+
+            Plotly.restyle(gd, {
+                x: x_update, y: y_update, z: z_update, hovertemplate: ht_update
+            });
+
+            Plotly.relayout(gd, {
+                'scene.xaxis.title.text': 'PC' + (dimX+1),
+                'scene.yaxis.title.text': 'PC' + (dimY+1),
+                'scene.zaxis.title.text': 'PC' + (dimZ+1),
+                'scene.annotations': getAnnotations(hx, hy, hz)
+            });
+        }
+
+        function updateHighlights() {
+            const gd = document.getElementById('g25plot');
+            const dimX = parseInt(document.getElementById('sel-x').value);
+            const dimY = parseInt(document.getElementById('sel-y').value);
+            const dimZ = parseInt(document.getElementById('sel-z').value);
+
+            const signX = document.getElementById('rev-x').checked ? 1 : -1;
+            const signY = document.getElementById('rev-y').checked ? -1 : 1;
+            const signZ = document.getElementById('rev-z').checked ? 1 : -1;
+
+            const hx = highlights.map(h => fullData[dimX][h.idx] === null ? null : fullData[dimX][h.idx] * signX);
+            const hy = highlights.map(h => fullData[dimY][h.idx] === null ? null : fullData[dimY][h.idx] * signY);
+            const hz = highlights.map(h => fullData[dimZ][h.idx] === null ? null : fullData[dimZ][h.idx] * signZ);
+            const hcolors = highlights.map((_, i) => highlightColors[i % highlightColors.length]);
+            
+            let plotX = hx.length > 0 ? hx : [null];
+            let plotY = hy.length > 0 ? hy : [null];
+            let plotZ = hz.length > 0 ? hz : [null];
+            let plotC = hcolors.length > 0 ? hcolors : ['#ffffff'];
+
+            Plotly.restyle(gd, {
+                x: [plotX], y: [plotY], z: [plotZ], 'marker.color': [plotC]
+            }, [traceIndices.length]);
+
+            Plotly.relayout(gd, {
+                'scene.annotations': getAnnotations(hx, hy, hz)
+            });
+        }
+
+        function doSearch() {
+            const q = document.getElementById('q').value.trim();
+            const resultSelect = document.getElementById('search-results');
+            
+            resultSelect.style.display = 'none';
+            resultSelect.innerHTML = '';
+            
+            if (!q) return;
+
+            const lower = q.toLowerCase();
+            let matches = [];
+
+            for (let i = 0; i < sampleNames.length; i++) {
+                const n = sampleNames[i].toLowerCase();
+                if (n === lower || n.includes(lower)) {
+                    matches.push({idx: i, name: sampleNames[i]});
+                }
+            }
+
+            if (matches.length === 0) {
+                alert("VERİ BULUNAMADI: " + q);
+            } else if (matches.length === 1) {
+                addHighlight(matches[0].idx, matches[0].name);
+            } else {
+                let defaultOpt = document.createElement('option');
+                defaultOpt.text = "SONUÇLAR (" + matches.length + ")";
+                defaultOpt.value = "";
+                resultSelect.appendChild(defaultOpt);
+
+                matches.forEach(m => {
+                    let opt = document.createElement('option');
+                    opt.value = m.idx;
+                    opt.text = m.name;
+                    resultSelect.appendChild(opt);
+                });
+                resultSelect.style.display = 'inline-block';
+            }
+        }
+
+        function addSelectedHighlight() {
+            const sel = document.getElementById('search-results');
+            const val = sel.value;
+            if(!val) return;
+            
+            const idx = parseInt(val);
+            const name = sampleNames[idx];
+            addHighlight(idx, name);
+            
+            sel.selectedIndex = 0;
+        }
+
+        function addHighlight(idx, name) {
+            if (!highlights.some(h => h.idx === idx)) {
+                highlights.push({idx: idx, name: name, ax: 0, ay: -35});
+                updateHighlights();
+                renderHighlightChips();
+            }
+        }
+
+        function renderHighlightChips() {
+            const container = document.getElementById('hl-container');
+            if (highlights.length === 0) {
+                container.style.display = 'none';
+                return;
+            }
+            
+            container.style.display = 'flex';
+            container.innerHTML = '';
+            
+            highlights.forEach((h, i) => {
+                const color = highlightColors[i % highlightColors.length];
+                const chip = document.createElement('div');
+                chip.className = 'hl-chip';
+                chip.style.backgroundColor = color;
+                
+                chip.innerHTML = `
+                    <span><b>${shorten(h.name)}</b></span>
+                    <button class="hl-btn" onclick="nudge(${i}, 0, -15)" title="Yukarı">▲</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 0, 15)" title="Aşağı">▼</button>
+                    <button class="hl-btn" onclick="nudge(${i}, -15, 0)" title="Sola">◄</button>
+                    <button class="hl-btn" onclick="nudge(${i}, 15, 0)" title="Sağa">►</button>
+                    <button class="hl-del" onclick="removeHighlight(${i})" title="Sil">✖</button>
+                `;
+                container.appendChild(chip);
+            });
+        }
+
+        function nudge(index, dx, dy) {
+            if (highlights[index]) {
+                highlights[index].ax += dx;
+                highlights[index].ay += dy;
+                updateHighlights();
+            }
+        }
+
+        function removeHighlight(index) {
+            const removedName = highlights[index].name;
+            highlights.splice(index, 1);
+            
+            let manualGroupIdx = rawDatasets.findIndex(ds => ds.group === 'manuël veri');
+            let rebuilt = false;
+            
+            if (manualGroupIdx !== -1) {
+                let manualGroup = rawDatasets[manualGroupIdx];
+                let initialLength = manualGroup.data.length;
+                
+                manualGroup.data = manualGroup.data.filter(row => row[0] !== removedName);
+                
+                if (manualGroup.data.length < initialLength) {
+                    if (manualGroup.data.length === 0) {
+                        rawDatasets.splice(manualGroupIdx, 1);
+                    }
+                    rebuildData();
+                    rebuilt = true;
+                }
+            }
+            
+            if (!rebuilt) {
+                updateHighlights();
+            }
+            renderHighlightChips();
+        }
+
+        function doClear() {
+            highlights = [];
+            
+            let manualGroupIdx = rawDatasets.findIndex(ds => ds.group === 'manuël veri');
+            if (manualGroupIdx !== -1) {
+                rawDatasets.splice(manualGroupIdx, 1);
+                rebuildData();
+            } else {
+                updateHighlights();
+            }
+            
+            renderHighlightChips();
+            document.getElementById('q').value = "";
+            
+            const sel = document.getElementById('search-results');
+            sel.innerHTML = '';
+            sel.style.display = 'none';
+        }
+    </script>
+</body>
+</html>
