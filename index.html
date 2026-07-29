@@ -94,7 +94,7 @@
 </head>
 <body>
     <div class="control-panel">
-        <label class="cb-label" title="Tüm numuuneleri birleştirerek tek bir PCA hesaplar">
+        <label class="cb-label" title="Tüm örnekleri birleştirerek tek bir PCA hesaplar">
             <input type="checkbox" id="cb-custom-pca" onchange="rebuildData()" checked>
             ÖZËL PCA
         </label>
@@ -122,7 +122,7 @@
 
         <div class="locked-group">
             <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#00ffcc;">ARA:</label>
-            <input id="q" type="text" placeholder="Numuune girin..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') doSearch()">
+            <input id="q" type="text" placeholder="Örnek girin..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') doSearch()">
             <button onclick="doSearch()" class="btn-search">BUL</button>
             <select id="search-results" onchange="addSelectedHighlight()" style="display:none; max-width:160px;"></select>
             <button onclick="doClear()" class="btn-clear">TEMİZLE</button>
@@ -132,7 +132,7 @@
         
         <div class="locked-group">
             <label style="font-weight:bold; letter-spacing:1px; white-space:nowrap; color:#f39c12;">YAPIŞTIR:</label>
-            <input id="paste-coord" type="text" placeholder="Örn: İsim,0.12..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') addPastedCoord()">
+            <input id="paste-coord" type="text" placeholder="örnek,0.12..." style="flex:1; max-width:140px;" onkeydown="if(event.key === 'Enter') addPastedCoord()">
             <button onclick="addPastedCoord()" class="btn-paste">EKLE</button>
         </div>
 
